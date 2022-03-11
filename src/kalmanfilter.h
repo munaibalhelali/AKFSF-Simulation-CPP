@@ -7,6 +7,8 @@
 #include "car.h"
 #include "sensors.h"
 #include "beacons.h"
+#include <math.h>
+#include <iostream>
 
 using Eigen::VectorXd;
 using Eigen::Vector2d;

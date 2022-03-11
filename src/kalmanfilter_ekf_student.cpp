@@ -47,6 +47,40 @@ void KalmanFilter::handleLidarMeasurement(LidarMeasurement meas, const BeaconMap
         if (meas.id != -1 && map_beacon.id != -1)
         {           
             // The map matched beacon positions can be accessed using: map_beacon.x AND map_beacon.y
+            VectorXd z = Vector2d();
+            z <<meas.range, meas.theta;
+
+            double delta_x = map_beacon.x - state(0);
+            double delta_y = map_beacon.y - state(1);
+            double r = sqrt(delta_x*delta_x + delta_y*delta_y);
+            double theta = atan2(delta_y,delta_x) - state(2);
+            theta = wrapAngle(theta);
+            
+            VectorXd z_hat = Vector2d();
+            z_hat << r, theta;
+            VectorXd y = z - z_hat;
+            y(1) = wrapAngle(y(1));
+            MatrixXd R = Matrix2d();
+            R << (LIDAR_RANGE_STD*LIDAR_RANGE_STD), 0, 0,(LIDAR_THETA_STD*LIDAR_THETA_STD);
+        
+            
+            MatrixXd H = MatrixXd(2, 4);
+            H(0, 0) = -delta_x/r;
+            H(0, 1) = -delta_y/r;
+            H(0, 2) = 0;
+            H(0, 3) = 0;
+            H(1, 0) = delta_y/r/r;
+            H(1, 1) = -delta_x/r/r;
+            H(1, 2) = -1;
+            H(1, 3) = 0;
+
+            MatrixXd S = H * cov * H.transpose() + R;
+            MatrixXd K = cov * H.transpose() * S.inverse();
+            state = state + K * y;
+            MatrixXd I = MatrixXd::Identity(4,4);
+            cov = ( I - K*H)*cov;
+
+
         }
 
         // ----------------------------------------------------------------------- //
@@ -72,6 +106,26 @@ void KalmanFilter::predictionStep(GyroMeasurement gyro, double dt)
         // values within correct range, otherwise strange angle effects might be seen.
         // ----------------------------------------------------------------------- //
         // ENTER YOUR CODE HERE
+        VectorXd x = Vector4d();
+        x(0) = state(3)*cos(state(2));
+        x(1) = state(3)*sin(state(2));
+        x(2) = 0;
+        x(3) = 0;
+
+        state = state + dt*x;
+        state(2) = wrapAngle(state(2) + dt*gyro.psi_dot);
+        MatrixXd F = MatrixXd::Identity(4,4);
+        F(0, 2) = -dt*state(3)*sin(state(2));
+        F(0, 3) = dt*cos(state(2));
+        F(1, 2) = dt*state(3)*cos(state(2));
+        F(1, 3) = dt*sin(state(2));
+        
+        MatrixXd Q = Matrix4d::Zero();
+        Q(2, 2) = dt*dt*GYRO_STD*GYRO_STD;
+        Q(3, 3) = dt*dt*ACCEL_STD*ACCEL_STD;
+
+        cov = F*cov*F.transpose() + Q;
+
 
         // ----------------------------------------------------------------------- //
 
