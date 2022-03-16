@@ -18,7 +18,11 @@ constexpr double INIT_PSI_STD = 45.0/180.0 * M_PI;
 constexpr double GPS_POS_STD = 3.0;
 constexpr double LIDAR_RANGE_STD = 3.0;
 constexpr double LIDAR_THETA_STD = 0.02;
-constexpr double GYRO_BIAS_STD = 0.0;
+
+constexpr double GYRO_BIAS_STD = 0.001;
+constexpr double CHI_THRESHOLD = 50.0;
+constexpr double LIDAR_MAX_RANGE = 90.0;
+constexpr double MAX_MATCHING_DIST_LANDMARKS = 50.0;
 
 constexpr int num_state = 5;
 constexpr int num_z = 2;
@@ -30,19 +34,19 @@ void KalmanFilter::handleLidarMeasurements(const std::vector<LidarMeasurement>& 
     for(const auto& meas : dataset) {handleLidarMeasurement(meas, map);}
 }
 
-int matchLandmarks(LidarMeasurement meas, const BeaconMap& map, VectorXd state, int true_id=NULL)
+BeaconData matchLandmarks(LidarMeasurement meas, const BeaconMap& map, VectorXd state)
 {
     VectorXd z = Vector2d::Zero();
     z << meas.range,meas.theta;
 
-    double x_b = meas.range*cos(meas.theta);
-    double y_b = meas.range*sin(meas.theta);
+    double meas_x = meas.range*cos(meas.theta);
+    double meas_y = meas.range*sin(meas.theta);
 
-    std::vector<BeaconData> beacons_within_range = map.getBeaconsWithinRange(state(0), state(1),100.0);
+    std::vector<BeaconData> beacons_within_range = map.getBeaconsWithinRange(state(0), state(1), LIDAR_MAX_RANGE);
     std::vector<double> landmark_dist;
 
     if(beacons_within_range.size() == 0){
-        return -1;
+        return BeaconData();
     }
     for(auto beacon: beacons_within_range)
     {
@@ -55,20 +59,19 @@ int matchLandmarks(LidarMeasurement meas, const BeaconMap& map, VectorXd state, 
         double beacon_x = r*cos(theta);
         double beacon_y = r*sin(theta);
 
-        double x_diff = beacon_x - x_b;
-        double y_diff = beacon_y - y_b;
+        double x_diff = beacon_x - meas_x;
+        double y_diff = beacon_y - meas_y;
         double dist = sqrt(x_diff*x_diff+y_diff*y_diff);
         landmark_dist.push_back(dist);
-        std::cout<<"beacons within range: "<< beacon.id<<" dist: "<<dist<<std::endl;
+        // std::cout<<"beacons within range: "<< beacon.id<<" dist: "<<dist<<std::endl;
     }
     int min_idx = std::min_element(landmark_dist.begin(), landmark_dist.end())-landmark_dist.begin();
 
-    std::cout<<"Truth: "<< true_id<< " calculated: "<< beacons_within_range[min_idx].id<<std::endl;
-    if(landmark_dist[min_idx]<300)
+    if(landmark_dist[min_idx]<MAX_MATCHING_DIST_LANDMARKS)
     {
-        return beacons_within_range[min_idx].id;
+        return beacons_within_range[min_idx];
     }else{
-        return -1;
+        return BeaconData();
     }
 }
 
@@ -90,9 +93,9 @@ void KalmanFilter::handleLidarMeasurement(LidarMeasurement meas, const BeaconMap
         // ENTER YOUR CODE HERE
 
         BeaconData map_beacon = map.getBeaconWithId(meas.id); // Match Beacon with built in Data Association Id
-        if (meas.id == -1 || map_beacon.id == -1){
-            int id = matchLandmarks(meas, map,state);
-            map_beacon = map.getBeaconWithId(id);
+        if (meas.id == -1 || map_beacon.id == -1)
+        {
+            map_beacon = matchLandmarks(meas, map,state);
         }
         // std::cout<<"meas.id: "<<meas.id<<" beacon.id: "<<map_beacon.id<<std::endl;
 
@@ -112,9 +115,10 @@ void KalmanFilter::handleLidarMeasurement(LidarMeasurement meas, const BeaconMap
             z_hat << r, theta;
             VectorXd y = z - z_hat;
             y(1) = wrapAngle(y(1));
-            double dist = sqrt(y(0)*y(0)+y(1)*y(1));
+
             MatrixXd R = Matrix2d();
-            R << (LIDAR_RANGE_STD*LIDAR_RANGE_STD), 0, 0,(LIDAR_THETA_STD*LIDAR_THETA_STD);
+            R << (LIDAR_RANGE_STD*LIDAR_RANGE_STD), 0,\
+                 0,(LIDAR_THETA_STD*LIDAR_THETA_STD);
         
             
             MatrixXd H = MatrixXd(num_z, num_state);
@@ -225,16 +229,16 @@ void KalmanFilter::handleGPSMeasurement(GPSMeasurement meas)
         MatrixXd S = H * cov * H.transpose() + R;
         //Check for faulty measurements
         double eta = y.transpose() * S.inverse() * y;
-        double Chi_threshold = 5.99;
-        // std::cout<<"eta: "<< eta<<"\nthr: "<<Chi_threshold<<std::endl;
-        // if( eta < Chi_threshold)
-        // {   
-            MatrixXd K = cov*H.transpose()*S.inverse();
+        MatrixXd K = cov*H.transpose()*S.inverse();
+        std::cout<<"eta: "<< eta<<"\nthr: "<<CHI_THRESHOLD<<std::endl;
+        if( eta < CHI_THRESHOLD)
+        {   
+            
             state = state + K*y;
             cov = (MatrixXd::Identity(num_state, num_state) - K*H) * cov;
             setState(state);
             setCovariance(cov);
-        // }
+        }
         
     }
     else
