@@ -246,7 +246,7 @@ void Simulation::render(Display& disp)
     disp.drawText_MainFont("Reset Key: r",Vector2(x_offset,y_offset+stride*0),1.0,{255,255,255});
     disp.drawText_MainFont("Pause Key: [space bar]",Vector2(x_offset,y_offset+stride*1),1.0,{255,255,255});
     disp.drawText_MainFont("Speed Multiplier (+/-) Key: [ / ] ",Vector2(x_offset,y_offset+stride*2),1.0,{255,255,255});
-    disp.drawText_MainFont("Zoom (+/-) Key: + / - (keypad)",Vector2(x_offset,y_offset+stride*3),1.0,{255,255,255});
+    disp.drawText_MainFont("Zoom (+/-) Key: z / x (keypad)",Vector2(x_offset,y_offset+stride*3),1.0,{255,255,255});
     disp.drawText_MainFont("Motion Profile Key: 1 - 9,0",Vector2(x_offset,y_offset+stride*4),1.0,{255,255,255});
 
 

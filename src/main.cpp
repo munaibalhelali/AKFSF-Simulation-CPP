@@ -80,8 +80,8 @@ int main( int argc, char* args[] )
                 {               
                     case SDLK_SPACE: mSimulation.togglePauseSimulation(); break;
                     case SDLK_ESCAPE:mRunning = false; break;
-                    case SDLK_KP_PLUS: mSimulation.increaseZoom(); break;
-                    case SDLK_KP_MINUS: mSimulation.decreaseZoom(); break;
+                    case SDLK_z: mSimulation.increaseZoom(); break;
+                    case SDLK_x: mSimulation.decreaseZoom(); break;
                     case SDLK_RIGHTBRACKET: mSimulation.increaseTimeMultiplier(); break;
                     case SDLK_LEFTBRACKET: mSimulation.decreaseTimeMultiplier(); break;
                     case SDLK_r: mSimulation.reset(); break;
